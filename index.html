@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<link rel="icon" href="data:,">
+<title>丹丹的院子·春天</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div id="app">
+  <!-- 开始画面 -->
+  <div id="start-screen" class="panel">
+    <h1>丹丹的院子</h1>
+    <p class="sub">春天·7天</p>
+    <p class="intro">一座小院子，一棵石榴树，一位奶奶，一只叫丹丹的北京犬，和一个刚搬来的小女孩。陪她们把春天一天一天过好。</p>
+    <label class="name-label" for="girl-name">小女孩的名字是？</label>
+    <input id="girl-name" type="text" maxlength="8" placeholder="留空就叫小女孩" autocomplete="off">
+    <p class="hint">可以随时切换成丹丹，用狗的鼻子闻出院子的秘密。</p>
+    <div class="perf-row">
+      <label><input type="checkbox" id="opt-lowq">低画质</label>
+      <label><input type="checkbox" id="opt-fps30">30帧</label>
+    </div>
+    <div class="btn-row">
+      <button id="btn-start" class="big">开始新游戏</button>
+      <button id="btn-continue" class="big" disabled>继续游戏</button>
+    </div>
+    <p class="keys">操作：WASD/方向键走路，E或点按互动，Q切换成丹丹，手机点屏幕按钮。</p>
+  </div>
+
+  <!-- 游戏画面 -->
+  <div id="game-screen" hidden>
+    <div id="hud">
+      <div id="hud-day">第1天·春天</div>
+      <div id="hud-trust">丹丹信任♥0</div>
+      <div id="hud-btns">
+        <button id="btn-switch" title="切换角色(Q)">切换：小女孩</button>
+        <button id="btn-album">相册</button>
+        <button id="btn-recipes">菜谱</button>
+        <button id="btn-save">保存</button>
+        <button id="btn-settings">设置</button>
+        <button id="btn-dinner">吃晚饭</button>
+      </div>
+    </div>
+    <div id="main-row">
+      <div id="canvas-wrap">
+        <canvas id="cv" width="960" height="760"></canvas>
+        <div id="toast" hidden></div>
+      </div>
+      <div id="task-panel">
+        <h3>今天要做的事</h3>
+        <ul id="task-list"></ul>
+        <h3>院子里的地方</h3>
+        <div id="area-list"></div>
+        <p class="task-tip">走到地方附近按E，或直接点地方名字，角色会自己走过去。</p>
+      </div>
+    </div>
+    <!-- 触屏按钮 -->
+    <div id="touch">
+      <div id="dpad">
+        <button data-dir="up">▲</button>
+        <div class="dpad-mid"><button data-dir="left">◀</button><button data-dir="down">▼</button><button data-dir="right">▶</button></div>
+      </div>
+      <div id="touch-actions">
+        <button id="btn-act">互动(E)</button>
+        <button id="btn-switch2">切换(Q)</button>
+      </div>
+      <div id="dog-actions" hidden>
+        <button data-dog="smell">闻</button>
+        <button data-dog="hear">听</button>
+        <button data-dog="drill">钻</button>
+        <button data-dog="carry">叼</button>
+      </div>
+    </div>
+    <div id="settings-panel" class="panel" hidden>
+      <h3>设置</h3>
+      <label><input type="checkbox" id="set-lowq">低画质（关粒子与阴影，旧手机更流畅）</label>
+      <label><input type="checkbox" id="set-fps30">30帧（限制渲染帧率）</label>
+      <div class="btn-row">
+        <button id="btn-restart">重新开始</button>
+        <button id="btn-close-settings">关闭</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 对话框 -->
+  <div id="dialogue" class="modal" hidden>
+    <div class="modal-box">
+      <div id="dlg-speaker"></div>
+      <div id="dlg-text"></div>
+      <button id="dlg-next" class="big">继续</button>
+    </div>
+  </div>
+
+  <!-- 做饭小游戏 -->
+  <div id="cook" class="modal" hidden>
+    <div class="modal-box">
+      <div id="cook-title"></div>
+      <p id="cook-hint"></p>
+      <div id="cook-steps"></div>
+      <div id="cook-choices"></div>
+      <button id="cook-close" class="big">先不做了</button>
+    </div>
+  </div>
+
+  <!-- 相册/菜谱 -->
+  <div id="collect" class="modal" hidden>
+    <div class="modal-box">
+      <div id="collect-title"></div>
+      <div id="collect-body"></div>
+      <button id="collect-close" class="big">合上</button>
+    </div>
+  </div>
+
+  <!-- 晚饭总结 -->
+  <div id="dinner" class="modal" hidden>
+    <div class="modal-box">
+      <div id="dinner-title"></div>
+      <div id="dinner-body"></div>
+      <button id="dinner-next" class="big">明天见</button>
+    </div>
+  </div>
+
+  <!-- 结局 -->
+  <div id="ending" class="modal" hidden>
+    <div class="modal-box">
+      <div id="ending-title"></div>
+      <div id="ending-body"></div>
+      <button id="ending-restart" class="big">再过一个春天</button>
+    </div>
+  </div>
+</div>
+<script src="app.js"></script>
+</body>
+</html>
