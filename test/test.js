@@ -10,26 +10,28 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
   const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
   const errors = [];
   page.on('pageerror', e => errors.push('pageerror: ' + e.message));
-  page.on('console', m => { if (m.type() === 'error') errors.push('console: ' + m.text()); });
+  page.on('console', m => { if (m.type() === 'error' && m.text().indexOf('501') < 0 && m.text().indexOf('Failed to load resource') < 0) errors.push('console: ' + m.text()); });
 
   const ev = (fn, arg) => page.evaluate(fn, arg);
   async function closeDialogues() {
-    for (let i = 0; i < 12; i++) {
+    for (let i = 0; i < 16; i++) {
       const st = await ev(() => {
         const d = document.getElementById('dialogue');
         const c = document.getElementById('cook');
         const dn = document.getElementById('dinner');
-        return { dlg: d && !d.hidden, cook: c && !c.hidden, dinner: dn && !dn.hidden };
+        const pz = document.getElementById('puzzle');
+        return { dlg: d && !d.hidden, cook: c && !c.hidden, dinner: dn && !dn.hidden, puzzle: pz && !pz.hidden };
       });
       if (st.cook) break; // 做饭单独处理
       if (st.dinner) break;
+      if (st.puzzle) { await page.click('#puzzle-close'); await sleep(150); continue; }
       if (!st.dlg) return;
       await page.click('#dlg-next'); await sleep(150);
     }
   }
   async function walkAndWait() {
-    // 等自动走到地点并弹出对话/做饭，最多等10秒
-    for (let i = 0; i < 34; i++) {
+    // 等自动走到地点并弹出对话/做饭，最多等18秒（无头CPU渲染帧率低，走路会变慢）
+    for (let i = 0; i < 60; i++) {
       const any = await ev(() => !document.getElementById('dialogue').hidden || !document.getElementById('cook').hidden);
       if (any) return true;
       await sleep(300);
@@ -37,24 +39,14 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
     return false;
   }
   async function doCook() {
+    // v2做饭是火候计时：用测试钩子把火候标强制拨到绿区正中再点
     const wasOpen = await ev(() => !document.getElementById('cook').hidden);
-    if (!wasOpen) return false; // 没打开不算做完
-    // 按“下一步”提示依次点正确步骤
+    if (!wasOpen) return false;
     for (let i = 0; i < 8; i++) {
       const open = await ev(() => !document.getElementById('cook').hidden);
       if (!open) return true;
-      const next = await ev(() => {
-        const t = document.getElementById('cook-steps').textContent;
-        const m = t.match(/下一步：(.+?)）/);
-        return m ? m[1] : null;
-      });
-      if (!next) return false;
-      const clicked = await ev((n) => {
-        const b = Array.from(document.querySelectorAll('#cook-choices button')).find(x => x.textContent === n);
-        if (b) { b.click(); return true; } return false;
-      }, next);
-      if (!clicked) return false;
-      await sleep(150);
+      await ev(() => window.__dandan.cookForceHit());
+      await sleep(200);
     }
     return await ev(() => document.getElementById('cook').hidden);
   }
@@ -100,6 +92,8 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
     await sleep(2500); await closeDialogues();
     check('第1天·收拾行李', await ev(() => !!(window.__dandan.state().tasksDone[1] || {}).unpack));
     check('第1天3任务全完成', (await tasksDone()) === 3);
+    check('v2·时光点：做完3件事剩3点', await ev(() => window.__dandan.actionPoints() === 3));
+    check('v2·天气与时段显示', await ev(() => document.getElementById('hud-weather').textContent.length > 0));
 
     // 切换成丹丹 + 闻
     await page.keyboard.press('q'); await sleep(300);
@@ -118,9 +112,13 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
     await sleep(300); await closeDialogues();
     check('第2天·浇水', await ev(() => !!(window.__dandan.state().tasksDone[2] || {}).water));
     await page.keyboard.press('q'); await sleep(200);
+    await ev(() => { window.__dandan.warpDog(230, 520); window.__dandan.dogAction('smell'); });
+    await sleep(200);
+    check('v2·气味轨迹实时出现', await ev(() => window.__dandan.smellTrail().length > 0));
     await ev(() => { window.__dandan.warpDog(230, 520); window.__dandan.dogAction('drill'); });
     await sleep(300); await closeDialogues();
     check('第2天·丹丹挖出旧弹珠（狗专属）', await ev(() => { const s = window.__dandan.state(); return !!(s.tasksDone[2] || {}).marble && s.fragments.indexOf('marble') >= 0; }));
+    check('v2·种花成长：浇水后阶段>=1', await ev(() => window.__dandan.plantState().stage >= 1));
     await page.keyboard.press('q'); await sleep(200);
     check('第2天晚饭进入第3天', await endDayAndClose() && await dayIs(3));
 
@@ -130,6 +128,17 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
     check('第3天·西红柿炒鸡蛋做完', await doCook());
     await sleep(300); await closeDialogues();
     check('第3天·做饭任务完成且收录菜谱', await ev(() => { const s = window.__dandan.state(); return !!(s.tasksDone[3] || {}).cook && s.recipes.indexOf('tomato') >= 0; }));
+    check('v2·做饭计时有得分', await ev(() => { const c = window.__dandan.cookState(); return c && c.score > 0; }));
+    // v2捉迷藏：走到丹丹藏身地点附近，按互动猜
+    check('v2·捉迷藏开始', await ev(() => window.__dandan.startHideSeek()));
+    await ev(() => {
+      const h = window.__dandan.state().hideSeek;
+      const pos = { tree: [250, 235], kitchen: [220, 300], house: [490, 175], garden: [170, 485], jar: [835, 545], gate: [480, 600], roof: [800, 150], hutong: [480, 710] }[h.hiddenArea];
+      window.__dandan.warp(pos[0], pos[1]);
+      window.__dandan.interact();
+    });
+    await sleep(300); await closeDialogues();
+    check('v2·捉迷藏猜中找到丹丹', await ev(() => window.__dandan.state().hideSeek.found));
     await ev(() => window.__dandan.goToArea('roof')); await walkAndWait(); await sleep(2500); await closeDialogues();
     check('第3天·晒被子', await ev(() => !!(window.__dandan.state().tasksDone[3] || {}).dry));
     await ev(() => { const d = window.__dandan.dog(); window.__dandan.warp(d.x, d.y); window.__dandan.interact(); });
@@ -201,6 +210,18 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
     await page.click('#btn-album'); await sleep(300);
     check('相册面板显示碎片', await ev(() => !document.getElementById('collect').hidden && document.getElementById('collect-body').textContent.indexOf('旧弹珠') >= 0));
     await page.click('#collect-close'); await sleep(200);
+
+    // v2大模型聊天：本地无后端，离线回落手写台词，不挡玩
+    await page.click('#btn-chat'); await sleep(400);
+    check('v2·聊天面板打开且显示离线', await ev(() => !document.getElementById('chat').hidden && document.getElementById('chat-badge').textContent.indexOf('离线') >= 0));
+    await page.fill('#chat-input', '奶奶，今天吃什么？');
+    await page.click('#chat-send'); await sleep(1200);
+    check('v2·离线聊天有回话', await ev(() => document.getElementById('chat-log').textContent.length > 4));
+    await page.click('#chat-close'); await sleep(200);
+    // v2声音开关
+    await page.click('#btn-sound'); await sleep(200);
+    check('v2·声音开关可关', await ev(() => window.__dandan.state().soundOn === false));
+    await page.click('#btn-sound'); await sleep(200);
 
     // 留空名字 = 小女孩
     await page.evaluate(() => localStorage.clear());
